@@ -1,9 +1,9 @@
 from gcn.layers import *
-import tensorflow as tf
+import torch
 from gcn.metrics import *
 
-flags = tf.app.flags
-FLAGS = flags.FLAGS
+#flags = tf.app.flags
+#FLAGS = flags.FLAGS
 
 
 class Model(object):
@@ -27,10 +27,10 @@ class Model(object):
 
     def build(self):
         """ Wrapper for _build() """
-        with tf.variable_scope(self.name):
-            self._build()
-        variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
-        self.vars = {var.name: var for var in variables}
+        #with tf.variable_scope(self.name):
+        self._build()
+      #  variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
+      #  self.vars = {var.name: var for var in variables}
 
     def fit(self):
         pass
@@ -58,7 +58,7 @@ class GCN(Model):
                                               output_dim=FLAGS.hidden1,
                                               adj=self.adj,
                                               features_nonzero=self.features_nonzero,
-                                              act=tf.nn.relu,
+                                              act=torch.nn.ReLU,
                                               dropout=self.dropout,
                                               logging=self.logging)(self.inputs)
 
@@ -69,7 +69,7 @@ class GCN(Model):
                                         dropout=self.dropout,
                                         logging=self.logging)(self.hidden1)
 
-        self.outputs = tf.nn.softmax(self.hidden2)
+        self.outputs = torch.nn.Softmax(self.hidden2)
 
         self._loss()
         self._accuracy()
@@ -83,7 +83,7 @@ class GCN(Model):
 
 class RGCN(Model):
     def __init__(self, placeholders, num_features, features_nonzero, scope, **kwargs):
-        with tf.variable_scope(scope):
+       # with tf.variable_scope(scope):
             super(RGCN, self).__init__(**kwargs)
 
             self.inputs = placeholders['features']
@@ -101,7 +101,7 @@ class RGCN(Model):
                                                         adj_1=self.adj_1,
                                                         adj_2=self.adj_2,
                                                         features_nonzero=self.features_nonzero,
-                                                        act=tf.nn.relu,
+                                                        act=torch.nn.ReLU,
                                                         dropout=self.dropout,
                                                         logging=self.logging)(self.inputs)
 
@@ -109,11 +109,11 @@ class RGCN(Model):
                                                   output_dim=FLAGS.hidden2,
                                                   adj_1=self.adj_1,
                                                   adj_2=self.adj_2,
-                                                  act=tf.nn.relu,
+                                                  act=torch.nn.ReLU,
                                                   dropout=self.dropout,
                                                   logging=self.logging)(self.hidden1)
 
-        self.outputs = tf.reduce_mean(self.hidden2, axis=0, keep_dims=True)
+        self.outputs = torch.mean(self.hidden2, axis=0, keep_dims=True)
 
 
 class RGCN2(Model):
@@ -134,7 +134,7 @@ class RGCN2(Model):
                                                         output_dim=FLAGS.hidden1,
                                                         adj_1=self.adj_1,
                                                         adj_2=self.adj_2,
-                                                        act=tf.nn.relu,
+                                                        act=torch.nn.ReLU,
                                                         dropout=self.dropout,
                                                         logging=self.logging)(self.inputs)
 
@@ -142,6 +142,6 @@ class RGCN2(Model):
                                                   output_dim=FLAGS.hidden2,
                                                   adj_1=self.adj_1,
                                                   adj_2=self.adj_2,
-                                                  act=tf.nn.relu,
+                                                  act=torch.nn.ReLU,
                                                   dropout=self.dropout,
                                                   logging=self.logging)(self.hidden1)

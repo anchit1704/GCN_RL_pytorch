@@ -74,14 +74,13 @@ class GraphConvolution(Layer):
         return outputs
     
     
-### need to complete this 
     
 class GraphConvolutionSparse(Layer):
     """Graph convolution layer for sparse inputs."""
     def __init__(self, input_dim, output_dim, adj, features_nonzero, dropout=0., act=tf.nn.relu, **kwargs):
         super(GraphConvolutionSparse, self).__init__(**kwargs)
-        with tf.variable_scope(self.name + '_vars'):
-            self.vars['weights'] = weight_variable_glorot(input_dim, output_dim, name="weights")
+       # with tf.variable_scope(self.name + '_vars'):
+        self.vars['weights'] = weight_variable_glorot(input_dim, output_dim, name="weights")
         self.dropout = dropout
         self.adj = adj
         self.act = act
@@ -91,9 +90,9 @@ class GraphConvolutionSparse(Layer):
     def _call(self, inputs):
         x = inputs
         x = dropout_sparse(x, 1-self.dropout, self.features_nonzero)
-        x = tf.sparse_tensor_dense_matmul(x, self.vars['weights'])
-        x = tf.sparse_tensor_dense_matmul(self.adj, x)
-        outputs = self.act(x)
+        x = tf.sparse_tensor_dense_matmul(x, self.vars['weights'])    ##### --- pytorch equivalent
+        x = tf.sparse_tensor_dense_matmul(self.adj, x)                ##### --- pytorch equivalent 
+        outputs = self.act(x)  
         return outputs
 
 
@@ -110,14 +109,15 @@ class RelationalGraphConvolution(Layer):
         self.act = act
 
     def _call(self, inputs):
-        x = tf.nn.dropout(inputs, 1-self.dropout)
+        x = torch.nn.dropout(1-self.dropout, inputs)
 
-        x_1 = tf.matmul(x, self.vars['weights_1'])
-        x_1 = tf.sparse_tensor_dense_matmul(self.adj_1, x_1)
+        x_1 = torch.mm(x, self.vars['weights_1'])
+        #x_1 = tf.sparse_tensor_dense_matmul(self.adj_1, x_1)
+        x_1 = torch.spmm(self.adj_1, x_1)
         # x_1 = tf.matmul(self.adj_1, x_1)
 
-        x_2 = tf.matmul(x, self.vars['weights_2'])
-        x_2 = tf.sparse_tensor_dense_matmul(self.adj_2, x_2)
+        x_2 = torch.mm(x, self.vars['weights_2'])
+        x_2 = torch.spmm(self.adj_2, x_2)
         # x_2 = tf.matmul(self.adj_2, x_2)
         outputs = self.act(x_1 + x_2)
         return outputs
@@ -125,11 +125,11 @@ class RelationalGraphConvolution(Layer):
 
 class RelationalGraphConvolutionSparse(Layer):
     """Graph convolution layer for sparse inputs."""
-    def __init__(self, input_dim, output_dim, adj_1, adj_2, features_nonzero, dropout=0., act=tf.nn.relu, **kwargs):
+    def __init__(self, input_dim, output_dim, adj_1, adj_2, features_nonzero, dropout=0., act=torch.nn.ReLU, **kwargs):
         super(RelationalGraphConvolutionSparse, self).__init__(**kwargs)
-        with tf.variable_scope(self.name + '_vars'):
-            self.vars['weights_1'] = weight_variable_glorot(input_dim, output_dim, name="weights_1")
-            self.vars['weights_2'] = weight_variable_glorot(input_dim, output_dim, name="weights_2")
+       # with tf.variable_scope(self.name + '_vars'):
+        self.vars['weights_1'] = weight_variable_glorot(input_dim, output_dim, name="weights_1")
+        self.vars['weights_2'] = weight_variable_glorot(input_dim, output_dim, name="weights_2")
         self.dropout = dropout
         self.adj_1 = adj_1
         self.adj_2 = adj_2
@@ -140,11 +140,11 @@ class RelationalGraphConvolutionSparse(Layer):
     def _call(self, inputs):
         x = dropout_sparse(inputs, 1-self.dropout, self.features_nonzero)
 
-        x_1 = tf.sparse_tensor_dense_matmul(x, self.vars['weights_1'])
-        x_1 = tf.sparse_tensor_dense_matmul(self.adj_1, x_1)
+        x_1 = torch.spmm(x, self.vars['weights_1'])
+        x_1 = torch.spmm(self.adj_1, x_1)
 
-        x_2 = tf.sparse_tensor_dense_matmul(x, self.vars['weights_2'])
-        x_2 = tf.sparse_tensor_dense_matmul(self.adj_2, x_2)
+        x_2 = torch.spmm(x, self.vars['weights_2'])
+        x_2 = torch.spmm(self.adj_2, x_2)
 
         outputs = self.act(x_1 + x_2)
         return outputs
