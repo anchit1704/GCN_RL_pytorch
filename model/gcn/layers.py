@@ -1,4 +1,4 @@
-from gcn.init import *
+from init import *
 import torch
 
 from torch.nn.parameter import Parameter
@@ -6,8 +6,8 @@ from torch.nn.modules.module import Module
 
 def sparse_retain(sparse_matrix, to_retain):
     # if sparse_matrix.shape[0] != to_retain.shape[0]:
-    if len(sparse_matrix.coalesce().values()) != to_retain.shape[0]:
-        raise ValueError("Shape Not Matched!") 
+   # if len(sparse_matrix.coalesce().values()) != to_retain.shape[0]:
+   #     raise ValueError("Shape Not Matched!") 
     
     a_mat = torch.IntTensor([])
     np_indices = np.empty((1, 2), int)  # dtype = np.int32)
@@ -38,14 +38,14 @@ def dropout_sparse(x, keep_prob, num_nonzero_elems):
     noise_shape = [num_nonzero_elems]
     random_tensor = keep_prob
     random_tensor += torch.FloatTensor(noise_shape).uniform_()
-    dropout_mask= torch.floor(random_tensor.type(torch.BoolTensor))
+    dropout_mask= (torch.floor(random_tensor).type(torch.BoolTensor))
     #dropout_mask = tf.cast(tf.floor(random_tensor), dtype=tf.bool)
     pre_out = sparse_retain(x, dropout_mask)
     return pre_out * (1./keep_prob)
 
 class GraphConvolution(Module):
     """Basic graph convolution layer for undirected graph without edge labels."""
-    def __init__(self, input_dim, output_dim, adj, dropout=0., act=torch.nn.ReLU, **kwargs):
+    def __init__(self, input_dim, output_dim, adj, dropout=0., act=torch.nn.ReLU(), **kwargs):
         super(GraphConvolution, self).__init__(**kwargs)
         self.weight = Parameter(weight_variable_glorot(input_dim, output_dim))
         self.dropout = dropout
@@ -64,7 +64,7 @@ class GraphConvolution(Module):
     
 class GraphConvolutionSparse(Module):
     """Graph convolution layer for sparse inputs."""
-    def __init__(self, input_dim, output_dim, adj, features_nonzero, dropout=0., act=tf.nn.relu, **kwargs):
+    def __init__(self, input_dim, output_dim, adj, features_nonzero, dropout=0., act=torch.nn.ReLU(), **kwargs):
         super(GraphConvolutionSparse, self).__init__(**kwargs)
        # with tf.variable_scope(self.name + '_vars'):
         self.weight = Parameter(weight_variable_glorot(input_dim, output_dim))
@@ -85,7 +85,7 @@ class GraphConvolutionSparse(Module):
 
 class RelationalGraphConvolution(Module):
     """Basic graph convolution layer for undirected graph without edge labels."""
-    def __init__(self, input_dim, output_dim, adj_1, adj_2, dropout=0., act=tf.nn.relu, **kwargs):
+    def __init__(self, input_dim, output_dim, adj_1, adj_2, dropout=0., act=torch.nn.ReLU(), **kwargs):
         super(RelationalGraphConvolution, self).__init__(**kwargs)
         
         self.weights_1 = Parameter(weight_variable_glorot(input_dim, output_dim, name="weights_1"))
@@ -112,7 +112,7 @@ class RelationalGraphConvolution(Module):
 
 class RelationalGraphConvolutionSparse(Module):
     """Graph convolution layer for sparse inputs."""
-    def __init__(self, input_dim, output_dim, adj_1, adj_2, features_nonzero, dropout=0., act=torch.nn.ReLU, **kwargs):
+    def __init__(self, input_dim, output_dim, adj_1, adj_2, features_nonzero, dropout=0., act=torch.nn.ReLU(), **kwargs):
         super(RelationalGraphConvolutionSparse, self).__init__(**kwargs)
        # with tf.variable_scope(self.name + '_vars'):
         self.weights_1 = Parameter(weight_variable_glorot(input_dim, output_dim))
