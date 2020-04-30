@@ -4,8 +4,9 @@ from __future__ import print_function
 import torch
 from gcn.models import *
 from rl.models import *
-from rl.replay_buffer import *
+from rl.replays_buffer import *
 from rl.utils import *
+import tensorflow as tf
 
 
 def get_candidate_ids(labels, n):
@@ -33,12 +34,13 @@ def model_train(dataset):
     #placeholders = get_placeholder()
 
     # Create Model
-    model_rgcn_main = RGCN(adj_1, adj_2, dropout ,num_features, features_nonzero)
-    model_rgcn_target = RGCN(adj_1, adj_2, dropout, num_features, features_nonzero)
+    model_rgcn_main = RGCN(adj_1, adj_2, 0.5 ,num_features, features_nonzero)
+    model_rgcn_target = RGCN(adj_1, adj_2, 0.5, num_features, features_nonzero)
     # model_rgcn_main = RGCN2(placeholders, num_features, "main")
     # model_rgcn_target = RGCN2(placeholders, num_features, "target")
-    state_representations_main = model_rgcn_main(torch.Tensor(features[0]))
-    state_representations_target = model_rgcn_target(torch.Tensor(features[0]))
+
+    state_representations_main = model_rgcn_main(torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2]))
+    state_representations_target = model_rgcn_target(torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2]))
 
     model_rl_target = DQN(state=state_representations_target,
                           output_dim=num_nodes)
@@ -61,7 +63,6 @@ def model_train(dataset):
                   'adj_1': adj_1,
                   'adj_2': adj_2,
                   'features': features,
-                  'placeholders': placeholders,
                   'labels': labels}
 
     for epoch in range(FLAGS.epochs):
@@ -83,8 +84,8 @@ def model_train(dataset):
       #  summary.value.add(tag='loss', simple_value=episode_loss)
       #  summary_writer.add_summary(summary, epoch)
       #  summary_writer.flush()
-        if epoch % 50 == 0:
-       #     model_saver.save(sess, FLAGS.model_path + '/model' + str(epoch) + '.cptk')
+       # if epoch % 50 == 0:
+        #       model_saver.save(sess, FLAGS.model_path + '/model' + str(epoch) + '.cptk')
 
 
 if __name__ == '__main__':

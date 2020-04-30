@@ -5,6 +5,8 @@ from gcn.utils import *
 import numpy as np
 import sys
 import torch.optim as optim
+import tensorflow as tf
+import torch
 sys.path.append('..')
 
 flags = tf.app.flags
@@ -19,14 +21,13 @@ def get_reward_simple(selected_list, labels):
 
     return count / np.sum(labels)
 
- def to_one_hot_vector(,label):
-            b = np.zeros((label.shape[0], num_class))
-            b[np.arange(label.shape[0]), label] = 1
+def to_one_hot_vector(label, num_class):
+            b = np.zeros((len(label), num_class))
+            b[np.arange(len(label)), label] = 1
             return b
 
 
-def update_main_rl(sess,
-                   model_rl_target,
+def update_main_rl(model_rl_target,
                    model_rl_main,
                    replay_buffer):
     #[0:s, 1:a, 2:r, 3:s', 4:done]
@@ -36,33 +37,34 @@ def update_main_rl(sess,
        # next_q_prime = sess.run(model_rl_target.qvalues,
        #                         feed_dict=train_batch[0, 3])
        
-       next_q_prime = model_rl_target(model_rl_target.state)
+       next_q_prime = model_rl_target()
        # next_q = sess.run(model_rl_main.qvalues,
        #                   feed_dict=train_batch[0, 3])
        
-       next_q = model_rl_main(model_rl_main.state)
+       next_q = model_rl_main()
+       print(type(next_q))
        
-        target_qvalues = train_batch[0, 2] + (1-train_batch[0, 4])*FLAGS.gamma*next_q_prime[0, np.argmax(next_q[0])]
-        print(target_qvalues)
+       target_qvalues = train_batch[0, 2] + (1-train_batch[0, 4])*FLAGS.gamma*next_q_prime[0, torch.argmax(next_q[0])]
+       print(target_qvalues)
         #feed_dict = train_batch[0, 0]
         #feed_dict.update({model_rl_main.chosen_actions: [train_batch[0, 1]],
         #                  model_rl_main.target_qvalues: [target_qvalues],
         #                  model_rl_main.lr: FLAGS.rl_lr})
         
-        chosen_actions = [train_batch[0, 1]]
-        target_qvalues = [target_qvalues]
-        lr = FLAGS.rl_lr
+       chosen_actions = [train_batch[0, 1]]
+       target_qvalues = torch.DoubleTensor([target_qvalues])
+       lr = FLAGS.rl_lr
         
         
-       actions_onehot = to_one_hot_vector(chosen_actions, train_batch[0][0]['adj_norm_1'][2][0])
+       actions_onehot = torch.from_numpy(to_one_hot_vector(chosen_actions, train_batch[0][0]['adj_norm_1'][2][0])).type(torch.DoubleTensor)
        # actions_onehot = to_one_hot_vector(self.chosen_actions, output_dim)
-       qvalues_for_chosen_actions = torch.sum(next_q*actions_onehot, axis=1)
-       td_error = torch.mul(target_qvalues-qvalues_for_chosen_actions)
+       qvalues_for_chosen_actions = torch.sum(next_q.type(torch.DoubleTensor)*actions_onehot, axis=1)
+       td_error = torch.mul(target_qvalues-qvalues_for_chosen_actions, target_qvalues-qvalues_for_chosen_actions)
        loss = 0.5 * td_error
        
-       loss.backward()
+       loss.backward(retain_graph=True)
        
-       optimizer = optim.RMSprop([model_rl_main.parameters(), model_rgcn_main.parameters()], lr=lr)
+       optimizer = optim.RMSprop(model_rl_main.parameters(), lr=lr)
        optimizer.step()
        
        optimizer.zero_grad()
@@ -83,7 +85,7 @@ def update_main_rl(sess,
         # loss, _ = sess.run([model_rl_main.loss,
         #                    model_rl_main.update],
         #                   feed_dict=feed_dict)
-        return loss
+       return loss
 
 
 def get_target_update_op():
@@ -95,8 +97,7 @@ def get_target_update_op():
     return op_holder
 
 
-def run_training_episode(sess,
-                         model_rl_target,
+def run_training_episode(model_rl_target,
                          model_rl_main,
                          gcn_params,
                          replay_buffer,
@@ -117,9 +118,11 @@ def run_training_episode(sess,
     steps = 0
     count = 0
     while steps < FLAGS.rl_episode_max_steps:
-        qvalues = model_rl_main() 
+        qvalues = model_rl_main()
+        print(type(qvalues))
+        print(qvalues.size())
         candidate_ids = list(set(candidate_ids).difference(set(selected_list)))
-        qvalues_masked = qvalues[candidate_ids]
+        qvalues_masked = qvalues[0][candidate_ids]
         # print(qvalues_masked[:10])
         # print(qvalues[3041])
 
@@ -129,7 +132,7 @@ def run_training_episode(sess,
 
         print("Epsison: {}".format(ep))
         selected_node_id = candidate_ids[np.random.choice(len(qvalues_masked))] \
-            if np.random.rand() < ep else candidate_ids[np.argmax(qvalues_masked)]
+            if np.random.rand() < ep else candidate_ids[torch.argmax(qvalues_masked)]
         print(selected_node_id)
         r = get_reward_simple(selected_list, gcn_params['labels']) if steps == FLAGS.rl_episode_max_steps - 1 else 0
         if selected_node_id in selected_list:
@@ -138,12 +141,11 @@ def run_training_episode(sess,
 
         selected_list.append(selected_node_id)
         
-         new_gcn_params = {'adj_norm_1': gcn_params['adj_norm_1'],
+        new_gcn_params = {'adj_norm_1': gcn_params['adj_norm_1'],
                   'adj_norm_2': gcn_params['adj_norm_2'],
                   'adj_1': gcn_params['adj_1'],
                   'adj_2': gcn_params['adj_2'],
                   'features': gcn_params['features'],
-                  'placeholders': gcn_params['placeholders'],
                   'labels': gcn_params['labels']}
          
         new_gcn_params['adj_norm_1'], new_gcn_params['adj_norm_2'], new_gcn_params['adj_1'], new_gcn_params['adj_2'] \
@@ -165,8 +167,7 @@ def run_training_episode(sess,
 
         if frame_count > FLAGS.replay_start_size:
             if frame_count % FLAGS.main_update_freq == 0:
-                loss = update_main_rl(sess=sess,
-                                      model_rl_target=model_rl_target,
+                loss = update_main_rl(model_rl_target=model_rl_target,
                                       model_rl_main=model_rl_main,
                                       replay_buffer=replay_buffer)
                 episode_losses.append(loss)

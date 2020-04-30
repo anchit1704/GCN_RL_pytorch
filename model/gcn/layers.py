@@ -1,5 +1,7 @@
-from init import *
+from gcn.init import *
+from gcn.utils import *
 import torch
+import numpy as np
 
 from torch.nn.parameter import Parameter
 from torch.nn.modules.module import Module
@@ -45,8 +47,8 @@ def dropout_sparse(x, keep_prob, num_nonzero_elems):
 
 class GraphConvolution(Module):
     """Basic graph convolution layer for undirected graph without edge labels."""
-    def __init__(self, input_dim, output_dim, adj, dropout=0., act=torch.nn.ReLU(), **kwargs):
-        super(GraphConvolution, self).__init__(**kwargs)
+    def __init__(self, input_dim, output_dim, adj, dropout=0., act=torch.nn.ReLU()):
+        super(GraphConvolution, self).__init__()
         self.weight = Parameter(weight_variable_glorot(input_dim, output_dim))
         self.dropout = dropout
         self.adj = adj
@@ -64,8 +66,8 @@ class GraphConvolution(Module):
     
 class GraphConvolutionSparse(Module):
     """Graph convolution layer for sparse inputs."""
-    def __init__(self, input_dim, output_dim, adj, features_nonzero, dropout=0., act=torch.nn.ReLU(), **kwargs):
-        super(GraphConvolutionSparse, self).__init__(**kwargs)
+    def __init__(self, input_dim, output_dim, adj, features_nonzero, dropout=0., act=torch.nn.ReLU()):
+        super(GraphConvolutionSparse, self).__init__()
        # with tf.variable_scope(self.name + '_vars'):
         self.weight = Parameter(weight_variable_glorot(input_dim, output_dim))
         self.dropout = dropout
@@ -91,19 +93,20 @@ class RelationalGraphConvolution(Module):
         self.weights_1 = Parameter(weight_variable_glorot(input_dim, output_dim, name="weights_1"))
         self.weights_2 = Parameter(weight_variable_glorot(input_dim, output_dim, name="weights_2"))
         self.dropout = dropout
-        self.adj_1 = adj_1
-        self.adj_2 = adj_2
+        self.adj_1 = convert_coo_to_torch_coo_tensor(adj_1.tocoo())
+        self.adj_2 = convert_coo_to_torch_coo_tensor(adj_2.tocoo() )
         self.act = act
 
     def forward(self, inputs):
-        x = torch.nn.dropout(1-self.dropout, inputs)
+        m = torch.nn.Dropout(1-self.dropout)
+        x = m(inputs)
 
-        x_1 = torch.mm(x, self.weights_1)
+        x_1 = torch.mm(x, self.weights_1.type(torch.FloatTensor))
         #x_1 = tf.sparse_tensor_dense_matmul(self.adj_1, x_1)
         x_1 = torch.spmm(self.adj_1, x_1)
         # x_1 = tf.matmul(self.adj_1, x_1)
 
-        x_2 = torch.mm(x, self.weights_2)
+        x_2 = torch.mm(x, self.weights_2.type(torch.FloatTensor))
         x_2 = torch.spmm(self.adj_2, x_2)
         # x_2 = tf.matmul(self.adj_2, x_2)
         outputs = self.act(x_1 + x_2)
@@ -118,20 +121,21 @@ class RelationalGraphConvolutionSparse(Module):
         self.weights_1 = Parameter(weight_variable_glorot(input_dim, output_dim))
         self.weights_2= Parameter(weight_variable_glorot(input_dim, output_dim))
         self.dropout = dropout
-        self.adj_1 = adj_1
-        self.adj_2 = adj_2
+        self.adj_1 = convert_coo_to_torch_coo_tensor(adj_1.tocoo())
+        self.adj_2 = convert_coo_to_torch_coo_tensor(adj_2.tocoo())
         self.act = act
         self.issparse = True
         self.features_nonzero = features_nonzero
+
 
     def forward(self, inputs):
         x = dropout_sparse(inputs, 1-self.dropout, self.features_nonzero)
 
         x_1 = torch.spmm(x, self.weights_1)
-        x_1 = torch.spmm(self.adj_1, x_1)
+        x_1 = torch.spmm(self.adj_1, x_1.type(torch.FloatTensor))
 
         x_2 = torch.spmm(x, self.weights_2)
-        x_2 = torch.spmm(self.adj_2, x_2)
+        x_2 = torch.spmm(self.adj_2, x_2.type(torch.FloatTensor))
 
         outputs = self.act(x_1 + x_2)
         return outputs

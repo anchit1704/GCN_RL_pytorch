@@ -1,8 +1,10 @@
 import torch
+import torch.nn as nn
 import tensorflow.contrib.slim as slim
 
-class DQN():
+class DQN(nn.Module):
     def __init__(self, state, output_dim):
+        super(DQN, self).__init__()
        # with tf.variable_scope(scope):
             # self.inputs = tf.placeholder(shape=[None, input_dim], dtype=tf.float32)
        # self.hidden1 = slim.fully_connected(inputs=state,
@@ -13,45 +15,27 @@ class DQN():
         #                                    scope='hidden1')
         
         self.state = state
-        
-        self.hidden1 = torch.nn.Sequential(
-        torch.nn.Linear(len(state), 512, bias=True),
-        torch.nn.Tanh(),
-        )
-        
-        self.hidden2 = torch.nn.Sequential(
-        torch.nn.Linear(len(self.hidden1), 256, bias=True),
-        torch.nn.Tanh(),
-        ) 
-        
-        self.qvalues =  torch.nn.Sequential(
-        torch.nn.Linear(len(self.hidden2), output_dim, bias=True),
-        torch.nn.Tanh(),
-        )
 
-     
-      #  self.hidden2 = slim.fully_connected(inputs=self.hidden1,
-      #                                      num_outputs=256,
-      #                                      activation_fn=tf.nn.tanh,
-      #                                      weights_initializer=tf.contrib.layers.xavier_initializer(),
-      #                                      biases_initializer=tf.zeros_initializer(),
-      #                                      scope='hidden2')
-      
-       # self.qvalues = slim.fully_connected(inputs=self.hidden2,
-       #                                     num_outputs=output_dim,
-       #                                     activation_fn=tf.nn.tanh,
-       #                                     weights_initializer=tf.contrib.layers.xavier_initializer(),
-       #                                     biases_initializer=tf.zeros_initializer(),
-       #                                     scope='qvalues')
+        self.hidden1 = torch.nn.Linear(state.shape[1], 512, bias=True)
+        self.tanh = torch.nn.Tanh()
+
+
+        
+        self.hidden2 = torch.nn.Linear(512, 256, bias=True)
+
+        
+        self.qvalues = torch.nn.Linear(256, output_dim, bias=True)
+
        
        
-       def forward(self, inputs):
-           h1 = self.hidden1(inputs)
+    def forward(self,):
+           h1 = self.hidden1(self.state)
+           h1 = self.tanh(h1)
            h2 = self.hidden2(h1)
+           h2 = self.tanh(h2)
            qvalues = self.qvalues(h2)
-           
-           
-           return qvalues,
+           qvalues = self.tanh(qvalues)
+           return qvalues
            
        
       

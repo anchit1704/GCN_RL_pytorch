@@ -192,6 +192,16 @@ def update_adj(selected_node_id, adj_1, adj_2):
 
     return adj_norm_1, adj_norm_2, adj_1, adj_2
 
+def convert_coo_to_torch_coo_tensor(coo):
+    values = coo.data
+    indices = np.vstack((coo.row, coo.col))
+
+    i = torch.LongTensor(indices.astype('int16'))
+    v = torch.FloatTensor(values)
+    shape = coo.shape
+
+    return torch.sparse_coo_tensor(i, v, shape)
+
 
 # def update_adj(selected_node_id, adj_1, adj_2):
 #
