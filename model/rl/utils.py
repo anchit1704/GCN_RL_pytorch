@@ -7,9 +7,10 @@ import sys
 import torch.optim as optim
 import tensorflow as tf
 import torch
+from absl import flags
 sys.path.append('..')
 
-flags = tf.app.flags
+#flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 
@@ -38,11 +39,12 @@ def update_main_rl(model_rl_target,
        #                         feed_dict=train_batch[0, 3])
        
        next_q_prime = model_rl_target()
+       next_q_prime = next_q_prime.detach()
        # next_q = sess.run(model_rl_main.qvalues,
        #                   feed_dict=train_batch[0, 3])
        
        next_q = model_rl_main()
-       print(type(next_q))
+       print('updating RL')
        
        target_qvalues = train_batch[0, 2] + (1-train_batch[0, 4])*FLAGS.gamma*next_q_prime[0, torch.argmax(next_q[0])]
        print(target_qvalues)
@@ -62,7 +64,7 @@ def update_main_rl(model_rl_target,
        td_error = torch.mul(target_qvalues-qvalues_for_chosen_actions, target_qvalues-qvalues_for_chosen_actions)
        loss = 0.5 * td_error
        
-       loss.backward(retain_graph=True)
+       loss.backward(retain_graph = True)
        
        optimizer = optim.RMSprop(model_rl_main.parameters(), lr=lr)
        optimizer.step()
@@ -119,8 +121,8 @@ def run_training_episode(model_rl_target,
     count = 0
     while steps < FLAGS.rl_episode_max_steps:
         qvalues = model_rl_main()
-        print(type(qvalues))
-        print(qvalues.size())
+      #  print(type(qvalues))
+       # print(qvalues.size())
         candidate_ids = list(set(candidate_ids).difference(set(selected_list)))
         qvalues_masked = qvalues[0][candidate_ids]
         # print(qvalues_masked[:10])
@@ -179,7 +181,7 @@ def run_training_episode(model_rl_target,
         frame_count += 1
         steps += 1
 
-        # print(count)
+        print(count)
         if done:
             break
 

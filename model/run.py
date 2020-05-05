@@ -6,8 +6,15 @@ from gcn.models import *
 from rl.models import *
 from rl.replays_buffer import *
 from rl.utils import *
+from absl import flags
 import tensorflow as tf
+import numpy as np
+import random
 
+
+device=torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+# device='cpu'
+print('device:',device)
 
 def get_candidate_ids(labels, n):
     candidate_list = []
@@ -84,22 +91,23 @@ def model_train(dataset):
       #  summary.value.add(tag='loss', simple_value=episode_loss)
       #  summary_writer.add_summary(summary, epoch)
       #  summary_writer.flush()
-       # if epoch % 50 == 0:
-        #       model_saver.save(sess, FLAGS.model_path + '/model' + str(epoch) + '.cptk')
+        if epoch % 50 == 0:
+              torch.save(model_rl_main, FLAGS.model_path + '/model' + str(epoch) + '.cptk')
 
 
 if __name__ == '__main__':
     # Set random seed
     seed = 123
+    torch.manual_seed(seed)
+    random.seed(seed)
     np.random.seed(seed)
-    tf.set_random_seed(seed)
 
     # Settings
-    flags = tf.app.flags
+   # flags = tf.app.flags
     FLAGS = flags.FLAGS
     flags.DEFINE_string('model', 'gcn', 'Model string.')  # 'gcn', 'gcn_cheby', 'dense'
     flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
-    flags.DEFINE_integer('epochs', 500, 'Number of epochs to train.')
+    flags.DEFINE_integer('epochs', 100, 'Number of epochs to train.')
     flags.DEFINE_float('dropout', 0.5, 'Dropout rate (1 - keep probability).')
     flags.DEFINE_float('weight_decay', 5e-4, 'Weight for L2 loss on embedding matrix.')
     flags.DEFINE_integer('early_stopping', 10, 'Tolerance for early stopping (# of epochs).')
