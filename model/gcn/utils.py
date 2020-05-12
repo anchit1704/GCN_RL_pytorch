@@ -3,7 +3,6 @@ import scipy.sparse as sp
 import torch
 import scipy.io as sio
 import random
-from sklearn import preprocessing
 
 
 def encode_onehot(labels):
@@ -118,35 +117,6 @@ def load_data_rgcn(dataset):
 #
 #     return adj_norm_1, adj_norm_2, adj_1, adj_2, features, labels
 
-
-def get_placeholder():
-    placeholders = {
-        'adj_1': tf.sparse_placeholder(tf.float32),
-        'adj_2': tf.sparse_placeholder(tf.float32),
-        'features': tf.sparse_placeholder(tf.float32),
-        'dropout': tf.placeholder_with_default(0., shape=())
-    }
-
-    # placeholders = {
-    #     'adj_1': tf.placeholder(dtype=tf.float32, shape=(None, None, None)),
-    #     'adj_2': tf.placeholder(dtype=tf.float32, shape=(None, None, None)),
-    #     'features': tf.placeholder(dtype=tf.float32, shape=(None, None, None)),
-    #     'dropout': tf.placeholder_with_default(0., shape=())
-    # }
-
-    return placeholders
-
-
-def construct_feed_dict(adj_1, adj_2, features, dropout, placeholders):
-    """Construct feed dictionary."""
-    feed_dict = dict()
-    feed_dict.update({placeholders['adj_1']: adj_1})
-    feed_dict.update({placeholders['adj_2']: adj_2})
-    feed_dict.update({placeholders['features']: features})
-    feed_dict.update({placeholders['dropout']: dropout})
-    return feed_dict
-
-
 def normalize(mx):
     """Row-normalize sparse matrix"""
     rowsum = np.array(mx.sum(1))
@@ -201,22 +171,3 @@ def convert_coo_to_torch_coo_tensor(coo):
     shape = coo.shape
 
     return torch.sparse_coo_tensor(i, v, shape)
-
-
-# def update_adj(selected_node_id, adj_1, adj_2):
-#
-#     # adj_1 = adj_1.todense()
-#     # adj_2 = adj_2.todense()
-#     adj_2[selected_node_id, :] = adj_1[selected_node_id, :]
-#     adj_2[:, selected_node_id] = adj_1[:, selected_node_id]
-#     adj_1[selected_node_id, :] = 0
-#     adj_1[:, selected_node_id] = 0
-#     adj_1[selected_node_id, selected_node_id] = 1
-#
-#     # adj_1 = sp.csr_matrix(adj_1)
-#     # adj_2 = sp.csr_matrix(adj_2)
-#
-#     adj_norm_1 = normalize_adj(adj_1)
-#     adj_norm_2 = normalize_adj(adj_2)
-#
-#     return adj_norm_1, adj_norm_2, adj_1, adj_2

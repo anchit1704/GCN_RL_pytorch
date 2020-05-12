@@ -1,14 +1,12 @@
 import torch
 import torch.nn as nn
-import tensorflow as tf
 import torch.nn.functional as F
 from gcn.layers import GraphConvolution
 from gcn.layers import GraphConvolutionSparse
 from gcn.layers import RelationalGraphConvolution
 from gcn.layers import RelationalGraphConvolutionSparse
+from absl import flags
 
-
-flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 class GCN(nn.Module):
@@ -46,35 +44,35 @@ class GCN(nn.Module):
 
 
 class RGCN(nn.Module):
-    def __init__(self, adj_1, adj_2, dropout, num_features, features_nonzero):
+    def __init__(self, num_features, features_nonzero):
        # with tf.variable_scope(scope):
             super(RGCN, self).__init__()
 
            # self.inputs = features
-            self.adj_1 = adj_1
-            self.adj_2 = adj_2
-            self.dropout = dropout
+            #self.adj_1 = adj_1
+            #self.adj_2 = adj_2
+            #self.dropout = dropout
             self.input_dim = num_features
             self.features_nonzero = features_nonzero
 
            # self.build()
 
-    def forward(self, inputs):
+    def forward(self, adj_1, adj_2, dropout, inputs):
         self.hidden1 = RelationalGraphConvolutionSparse(input_dim=self.input_dim,
                                                         output_dim=FLAGS.hidden1,   #replace tf flag
-                                                        adj_1=self.adj_1,
-                                                        adj_2=self.adj_2,
+                                                        adj_1= adj_1,
+                                                        adj_2= adj_2,
                                                         features_nonzero=self.features_nonzero,
                                                         act=torch.nn.ReLU(),
-                                                        dropout=self.dropout
+                                                        dropout=dropout
                                                         )(inputs)
 
         self.hidden2 = RelationalGraphConvolution(input_dim=FLAGS.hidden1,
                                                   output_dim=FLAGS.hidden2,
-                                                  adj_1=self.adj_1,
-                                                  adj_2=self.adj_2,
+                                                  adj_1=adj_1,
+                                                  adj_2=adj_2,
                                                   act=torch.nn.ReLU(),
-                                                  dropout=self.dropout
+                                                  dropout=dropout
                                                   )(self.hidden1)
 
         self.outputs = torch.mean(self.hidden2, 0, keepdim=True)

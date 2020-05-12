@@ -5,12 +5,10 @@ from gcn.utils import *
 import numpy as np
 import sys
 import torch.optim as optim
-import tensorflow as tf
 import torch
 from absl import flags
 sys.path.append('..')
 
-#flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 
@@ -28,111 +26,93 @@ def to_one_hot_vector(label, num_class):
             return b
 
 
-def update_main_rl(model_rl_target,
+def update_main_rl(state_rep_main,
+                   state_rep_target,
+                   model_rl_target,
                    model_rl_main,
-                   replay_buffer):
+                   replay_buffer,
+                   parameters):
     #[0:s, 1:a, 2:r, 3:s', 4:done]
-   # with sess. as_default():
        train_batch = replay_buffer.sample(size=FLAGS.rl_batch_size)
-        # train_batch = np.moveaxis(train_batch, 0, 1)
-       # next_q_prime = sess.run(model_rl_target.qvalues,
-       #                         feed_dict=train_batch[0, 3])
-       
-       next_q_prime = model_rl_target()
+
+
+
+       next_q_prime = []
+       next_q = []
+       for idx in enumerate(train_batch):
+           next_q_prime.append(model_rl_target(state_rep_target))
+           next_q.append(model_rl_main(state_rep_main))
+
+
+       next_q = torch.cat(next_q, 0)
+       next_q_prime = torch.cat(next_q_prime, 0)
        next_q_prime = next_q_prime.detach()
-       # next_q = sess.run(model_rl_main.qvalues,
-       #                   feed_dict=train_batch[0, 3])
-       
-       next_q = model_rl_main()
+
+
+
+
        print('updating RL')
-       
-       target_qvalues = train_batch[0, 2] + (1-train_batch[0, 4])*FLAGS.gamma*next_q_prime[0, torch.argmax(next_q[0])]
-       print(target_qvalues)
-        #feed_dict = train_batch[0, 0]
-        #feed_dict.update({model_rl_main.chosen_actions: [train_batch[0, 1]],
-        #                  model_rl_main.target_qvalues: [target_qvalues],
-        #                  model_rl_main.lr: FLAGS.rl_lr})
+
+       loss = []
+
+       for idx in enumerate(train_batch):
+           target_qvalues = train_batch[idx[0], 2] + (1-train_batch[idx[0], 4])*FLAGS.gamma*next_q_prime[idx[0], torch.argmax(next_q[idx[0]])]
+           print(target_qvalues)
+
+           chosen_actions = [train_batch[idx[0], 1]]
+           target_qvalues = torch.DoubleTensor([target_qvalues])
+           lr = FLAGS.rl_lr
         
-       chosen_actions = [train_batch[0, 1]]
-       target_qvalues = torch.DoubleTensor([target_qvalues])
-       lr = FLAGS.rl_lr
         
-        
-       actions_onehot = torch.from_numpy(to_one_hot_vector(chosen_actions, train_batch[0][0]['adj_norm_1'][2][0])).type(torch.DoubleTensor)
-       # actions_onehot = to_one_hot_vector(self.chosen_actions, output_dim)
-       qvalues_for_chosen_actions = torch.sum(next_q.type(torch.DoubleTensor)*actions_onehot, axis=1)
-       td_error = torch.mul(target_qvalues-qvalues_for_chosen_actions, target_qvalues-qvalues_for_chosen_actions)
-       loss = 0.5 * td_error
-       
+           actions_onehot = torch.from_numpy(to_one_hot_vector(chosen_actions, train_batch[idx[0]][0]['adj_norm_1'][2][0])).type(torch.DoubleTensor)
+           qvalues_for_chosen_actions = torch.sum(next_q[idx[0]].type(torch.DoubleTensor)*actions_onehot, axis=1)
+           td_error = torch.mul(target_qvalues-qvalues_for_chosen_actions, target_qvalues-qvalues_for_chosen_actions)
+           loss.append(0.5 * td_error)
+
+
+       loss = torch.FloatTensor(loss)
+       loss = torch.sum(loss)
+       loss.requires_grad = True
        loss.backward(retain_graph = True)
        
-       optimizer = optim.RMSprop(model_rl_main.parameters(), lr=lr)
+       optimizer = optim.RMSprop(parameters, lr=lr)
        optimizer.step()
        
        optimizer.zero_grad()
        
        loss = loss.item()
-       
-       
-
-       # params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope)
-        #gradients = tf.gradients(self.loss, params)
-        #norm_gradients, _ = tf.clip_by_global_norm(gradients, 40.0)
-        #trainer = tf.train.RMSPropOptimizer(learning_rate=self.lr)
-        #self.update = trainer.apply_gradients(zip(norm_gradients, params))
-        
-        # feed_dict[model_rl_main.chosen_actions] = np.vstack(train_batch[0, 1])
-        # feed_dict[model_rl_main.target_qvalues] = target_qvalues
-        # feed_dict[model_rl_main.lr] = FLAGS.rl_lr
-        # loss, _ = sess.run([model_rl_main.loss,
-        #                    model_rl_main.update],
-        #                   feed_dict=feed_dict)
        return loss
 
-
-def get_target_update_op():
-    target_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'target')
-    main_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'main')
-    op_holder = []
-    for tp, mp in zip(target_params, main_params):
-        op_holder.append(tp.assign(mp.value()))
-    return op_holder
-
-
-def run_training_episode(model_rl_target,
+def run_training_episode(model_rgcn_main,
+                         model_rgcn_target,
+                         model_rl_target,
                          model_rl_main,
                          gcn_params,
                          replay_buffer,
-                         #target_update_op,
                          frame_count,
-                         candidate_ids
+                         candidate_ids,
+                         parameters
                          ):
     episode_reward = 0
     episode_losses = []
     selected_list = []
-   # feed_dict = construct_feed_dict(gcn_params['adj_norm_1'],
-   #                                 gcn_params['adj_norm_2'],
-   #                                 gcn_params['features'],
-   #                                 FLAGS.dropout,
-   #                                 gcn_params['placeholders'])
-    # state = sess.run(model_gcn.outputs,
-    #                  feed_dict=feed_dict)
     steps = 0
     count = 0
     while steps < FLAGS.rl_episode_max_steps:
-        qvalues = model_rl_main()
-      #  print(type(qvalues))
-       # print(qvalues.size())
+        features = gcn_params['features']
+        adj_1 = gcn_params['adj_1']
+        adj_2 = gcn_params['adj_2']
+        state_rep_main = model_rgcn_main(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2]))
+        state_rep_target = model_rgcn_target(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2]))
+        qvalues = model_rl_main(state_rep_main)
         candidate_ids = list(set(candidate_ids).difference(set(selected_list)))
         qvalues_masked = qvalues[0][candidate_ids]
-        # print(qvalues_masked[:10])
-        # print(qvalues[3041])
 
         (ep_start, anneal_steps, ep_end) = FLAGS.epsilon
         ratio = max((anneal_steps - max(frame_count-FLAGS.replay_start_size, 0))/float(anneal_steps), 0)
         ep = (ep_start - ep_end)*ratio + ep_end
 
-        print("Epsison: {}".format(ep))
+        print("Epsilon: {}".format(ep))
         selected_node_id = candidate_ids[np.random.choice(len(qvalues_masked))] \
             if np.random.rand() < ep else candidate_ids[torch.argmax(qvalues_masked)]
         print(selected_node_id)
@@ -159,22 +139,18 @@ def run_training_episode(model_rl_target,
         # check if done and get new state
         done = True if steps == FLAGS.rl_episode_max_steps-1 else False
 
-      #  new_feed_dict = construct_feed_dict(gcn_params['adj_norm_1'],
-      #                                      gcn_params['adj_norm_2'],
-      #                                      gcn_params['features'],
-      #                                     FLAGS.dropout,
-      #                                       gcn_params['placeholders'])
-
         replay_buffer.add(np.reshape(np.array([ gcn_params, selected_node_id, r, new_gcn_params, done]), [1, -1]))
 
         if frame_count > FLAGS.replay_start_size:
             if frame_count % FLAGS.main_update_freq == 0:
-                loss = update_main_rl(model_rl_target=model_rl_target,
+                loss = update_main_rl(state_rep_main = state_rep_main,
+                                      state_rep_target = state_rep_target,
+                                      model_rl_target=model_rl_target,
                                       model_rl_main=model_rl_main,
-                                      replay_buffer=replay_buffer)
+                                      replay_buffer=replay_buffer,
+                                      parameters = parameters)
                 episode_losses.append(loss)
             if frame_count % FLAGS.target_update_freq == 0:
-                #sess.run(target_update_op)
                 model_rl_target.load_state_dict(model_rl_main.state_dict())
 
         gcn_params = new_gcn_params
