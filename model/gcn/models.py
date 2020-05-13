@@ -9,6 +9,10 @@ from absl import flags
 
 FLAGS = flags.FLAGS
 
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+# device='cpu'
+print('gcn_models:', device)
+
 class GCN(nn.Module):
     def __init__(self, num_features, features_nonzero):
         super(GCN, self).__init__()
@@ -22,16 +26,16 @@ class GCN(nn.Module):
                                               features_nonzero=self.features_nonzero,
                                               act=torch.nn.ReLU,
                                               dropout=self.dropout,
-                                              logging=self.logging)(self.inputs)
+                                              logging=self.logging).to(device)(self.inputs)
 
         self.hidden2 = GraphConvolution(input_dim=FLAGS.hidden1,
                                         output_dim=FLAGS.hidden2,
                                         adj=adj,
                                         act=lambda x: x,
                                         dropout=self.dropout,
-                                        logging=self.logging)(self.hidden1)
+                                        logging=self.logging).to(device)(self.hidden1)
 
-        self.outputs = torch.nn.Softmax(self.hidden2)
+        self.outputs = torch.nn.Softmax(self.hidden2).to(device)
 
         self._loss()
         self._accuracy()

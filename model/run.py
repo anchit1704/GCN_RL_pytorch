@@ -34,16 +34,16 @@ def model_train(dataset):
     features_nonzero = features[1].shape[0]
 
     # Create Model
-    model_rgcn_main = RGCN(num_features, features_nonzero)
-    model_rgcn_target = RGCN(num_features, features_nonzero)
+    model_rgcn_main = RGCN(num_features, features_nonzero).to(device)
+    model_rgcn_target = RGCN(num_features, features_nonzero).to(device)
 
-    state_representations_main = model_rgcn_main(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2]))
-    state_representations_target = model_rgcn_target(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2]))
+    state_representations_main = model_rgcn_main(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2])).to(device)
+    state_representations_target = model_rgcn_target(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2])).to(device)
 
     model_rl_target = DQN(state=state_representations_target,
-                          output_dim=num_nodes)
+                          output_dim=num_nodes).to(device)
     model_rl_main = DQN(state=state_representations_main,
-                        output_dim=num_nodes)
+                        output_dim=num_nodes).to(device)
 
     parameters = list(model_rgcn_main.parameters()) + list(model_rl_main.parameters())
 
@@ -59,8 +59,8 @@ def model_train(dataset):
     for epoch in range(FLAGS.epochs):
         episode_reward, episode_loss, frame_count = run_training_episode(model_rgcn_main = model_rgcn_main,
                                                         model_rgcn_target = model_rgcn_target,
-                                                        model_rl_target=model_rl_target,
                                                         model_rl_main=model_rl_main,
+                                                        model_rl_target=model_rl_target,
                                                         gcn_params=gcn_params,
                                                         replay_buffer=replay_buffer,
                                                         frame_count=frame_count,
@@ -95,10 +95,10 @@ if __name__ == '__main__':
     flags.DEFINE_multi_float('epsilon', [1, 1000, 0.1],
                              ['Initial exploration rate', 'anneal steps', 'final exploration rate'])
     flags.DEFINE_float('gamma', 0.99, 'Discount factor.')
-    flags.DEFINE_integer('replay_start_size', 100, 'Number of experiences to be stored before training.')
+    flags.DEFINE_integer('replay_start_size', 20, 'Number of experiences to be stored before training.')
     flags.DEFINE_integer('target_update_freq', 100, 'rl target network update frequency.')
-    flags.DEFINE_integer('main_update_freq', 4, 'rl main network update frequency.')
-    flags.DEFINE_integer('rl_batch_size', 64, 'Batch size for training rl.')
+    flags.DEFINE_integer('main_update_freq', 10, 'rl main network update frequency.')
+    flags.DEFINE_integer('rl_batch_size', 10, 'Batch size for training rl.')
     flags.DEFINE_float('rl_lr', 0.0001, 'Initial rl learning rate.')
 
     flags.DEFINE_string('summary_path', './log', 'Path to store training summary.')
@@ -106,7 +106,9 @@ if __name__ == '__main__':
 
     dataset = "BlogCatalog_classification"
 
-    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     # device='cpu'
     print('device:', device)
+
+    torch.set_default_tensor_type(torch.cuda.FloatTensor)
     model_train(dataset)

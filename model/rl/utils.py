@@ -6,11 +6,14 @@ import numpy as np
 import sys
 import torch.optim as optim
 import torch
+import torch.nn as nn
 from absl import flags
 sys.path.append('..')
 
 FLAGS = flags.FLAGS
 
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+print('rl_util', device)
 
 def get_reward_simple(selected_list, labels):
     count = 0
@@ -26,67 +29,69 @@ def to_one_hot_vector(label, num_class):
             return b
 
 
-def update_main_rl(state_rep_main,
-                   state_rep_target,
-                   model_rl_target,
+def update_main_rl(model_rgcn_main,
+                   model_rgcn_target,
                    model_rl_main,
+                   model_rl_target,
                    replay_buffer,
                    parameters):
     #[0:s, 1:a, 2:r, 3:s', 4:done]
        train_batch = replay_buffer.sample(size=FLAGS.rl_batch_size)
 
+       rewards = []
+       state_rep_main = []
+       state_rep_target = []
+       actions = []
 
-
-       next_q_prime = []
-       next_q = []
        for idx in enumerate(train_batch):
-           next_q_prime.append(model_rl_target(state_rep_target))
-           next_q.append(model_rl_main(state_rep_main))
+           state_rep_main.append(model_rgcn_main(train_batch[idx[0],3]['adj_1'],
+                                            train_batch[idx[0], 3]['adj_2'],
+                                            0.5,
+                                            torch.sparse_coo_tensor(torch.tensor(train_batch[idx[0], 3]['features'][0].transpose()),
+                                                                    torch.tensor(train_batch[idx[0], 3]['features'][1]),
+                                                                    train_batch[idx[0], 3]['features'][2])))
+           state_rep_target.append(model_rgcn_target(train_batch[idx[0], 3]['adj_1'],
+                                                train_batch[idx[0], 3]['adj_2'],
+                                                0.5,
+                                                torch.sparse_coo_tensor(torch.tensor(train_batch[idx[0], 3]['features'][0].transpose()),
+                                                                        torch.tensor(train_batch[idx[0], 3]['features'][1]),
+                                                                        train_batch[idx[0], 3]['features'][2])))
 
+           rewards.append(train_batch[idx[0], 2])
+           actions.append(train_batch[idx[0], 1])
 
-       next_q = torch.cat(next_q, 0)
-       next_q_prime = torch.cat(next_q_prime, 0)
+       state_rep_main = torch.cat(state_rep_main, 0).to(device)
+       reward = torch.FloatTensor(rewards).to(device)
+       action = torch.LongTensor(actions).to(device)
+       state_rep_target = torch.cat(state_rep_target, 0).to(device)
+
+       action = action.unsqueeze(1).to(device)
+       next_q = model_rl_main(state_rep_main)
+       next_q = next_q.gather(1, action)
+       print('next_q:',next_q[0][:5])
+       next_q_prime = model_rl_target(state_rep_target)
        next_q_prime = next_q_prime.detach()
 
 
-
+       target_qvalues = (reward+FLAGS.gamma*next_q_prime.max(1)[0]).unsqueeze(1)
 
        print('updating RL')
 
-       loss = []
+       loss = nn.MSELoss()
+       loss = loss(next_q, target_qvalues)
 
-       for idx in enumerate(train_batch):
-           target_qvalues = train_batch[idx[0], 2] + (1-train_batch[idx[0], 4])*FLAGS.gamma*next_q_prime[idx[0], torch.argmax(next_q[idx[0]])]
-           print(target_qvalues)
-
-           chosen_actions = [train_batch[idx[0], 1]]
-           target_qvalues = torch.DoubleTensor([target_qvalues])
-           lr = FLAGS.rl_lr
-        
-        
-           actions_onehot = torch.from_numpy(to_one_hot_vector(chosen_actions, train_batch[idx[0]][0]['adj_norm_1'][2][0])).type(torch.DoubleTensor)
-           qvalues_for_chosen_actions = torch.sum(next_q[idx[0]].type(torch.DoubleTensor)*actions_onehot, axis=1)
-           td_error = torch.mul(target_qvalues-qvalues_for_chosen_actions, target_qvalues-qvalues_for_chosen_actions)
-           loss.append(0.5 * td_error)
-
-
-       loss = torch.FloatTensor(loss)
-       loss = torch.sum(loss)
-       loss.requires_grad = True
-       loss.backward(retain_graph = True)
-       
+       lr = FLAGS.rl_lr
        optimizer = optim.RMSprop(parameters, lr=lr)
-       optimizer.step()
-       
        optimizer.zero_grad()
-       
-       loss = loss.item()
+       loss.backward(retain_graph=True)
+       optimizer.step()
+
        return loss
 
 def run_training_episode(model_rgcn_main,
                          model_rgcn_target,
-                         model_rl_target,
                          model_rl_main,
+                         model_rl_target,
                          gcn_params,
                          replay_buffer,
                          frame_count,
@@ -102,9 +107,7 @@ def run_training_episode(model_rgcn_main,
         features = gcn_params['features']
         adj_1 = gcn_params['adj_1']
         adj_2 = gcn_params['adj_2']
-        state_rep_main = model_rgcn_main(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2]))
-        state_rep_target = model_rgcn_target(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2]))
-        qvalues = model_rl_main(state_rep_main)
+        qvalues = model_rl_main(16).to(device)
         candidate_ids = list(set(candidate_ids).difference(set(selected_list)))
         qvalues_masked = qvalues[0][candidate_ids]
 
@@ -143,10 +146,10 @@ def run_training_episode(model_rgcn_main,
 
         if frame_count > FLAGS.replay_start_size:
             if frame_count % FLAGS.main_update_freq == 0:
-                loss = update_main_rl(state_rep_main = state_rep_main,
-                                      state_rep_target = state_rep_target,
-                                      model_rl_target=model_rl_target,
+                loss = update_main_rl(model_rgcn_main = model_rgcn_main,
+                                      model_rgcn_target = model_rgcn_target,
                                       model_rl_main=model_rl_main,
+                                      model_rl_target=model_rl_target,
                                       replay_buffer=replay_buffer,
                                       parameters = parameters)
                 episode_losses.append(loss)
@@ -161,5 +164,5 @@ def run_training_episode(model_rgcn_main,
         if done:
             break
 
-    episode_loss = np.mean(episode_losses) if len(episode_losses) != 0 else 0
+    episode_loss = torch.mean(torch.FloatTensor(episode_losses)) if len(episode_losses) != 0 else 0
     return episode_reward, episode_loss, frame_count

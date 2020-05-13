@@ -1,26 +1,22 @@
 import torch
 import torch.nn as nn
 
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+print('rl_models', device)
+
 class DQN(nn.Module):
-    def __init__(self, state, output_dim):
+    def __init__(self, state_size, output_dim):
         super(DQN, self).__init__()
 
-        self.state = state
+        self.state_size = state_size
 
-        self.hidden1 = torch.nn.Linear(state.shape[1], 512, bias=True)
-        self.tanh = torch.nn.Tanh()
+        self.qvalues = nn.Sequential(nn.Linear(state_size, 512, bias=True).to(device),
+                                     nn.Tanh().to(device),
+                                     nn.Linear(512, 256, bias=True).to(device),
+                                     nn.Tanh().to(device),
+                                     nn.Linear(256, output_dim, bias=True).to(device),
+                                     nn.Tanh().to(device)).to(device)
 
-        self.hidden2 = torch.nn.Linear(512, 256, bias=True)
-
-        self.qvalues = torch.nn.Linear(256, output_dim, bias=True)
-
-       
-       
     def forward(self, state):
-           h1 = self.hidden1(state)
-           h1 = self.tanh(h1)
-           h2 = self.hidden2(h1)
-           h2 = self.tanh(h2)
-           qvalues = self.qvalues(h2)
-           qvalues = self.tanh(qvalues)
-           return qvalues
+       qvalues = self.qvalues(state)
+       return qvalues

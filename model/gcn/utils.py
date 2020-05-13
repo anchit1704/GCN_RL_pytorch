@@ -170,4 +170,4 @@ def convert_coo_to_torch_coo_tensor(coo):
     v = torch.FloatTensor(values)
     shape = coo.shape
 
-    return torch.sparse_coo_tensor(i, v, shape)
+    return torch.sparse_coo_tensor(i, v, shape).to('cuda:0')

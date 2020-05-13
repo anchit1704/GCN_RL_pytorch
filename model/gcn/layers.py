@@ -88,17 +88,17 @@ class RelationalGraphConvolution(Module):
         self.weights_2 = Parameter(weight_variable_glorot(input_dim, output_dim, name="weights_2"))
         self.dropout = dropout
         self.adj_1 = convert_coo_to_torch_coo_tensor(adj_1.tocoo())
-        self.adj_2 = convert_coo_to_torch_coo_tensor(adj_2.tocoo() )
+        self.adj_2 = convert_coo_to_torch_coo_tensor(adj_2.tocoo())
         self.act = act
 
     def forward(self, inputs):
         m = torch.nn.Dropout(1-self.dropout)
         x = m(inputs)
 
-        x_1 = torch.mm(x, self.weights_1.type(torch.FloatTensor))
+        x_1 = torch.mm(x, self.weights_1.type(torch.cuda.FloatTensor))
         x_1 = torch.spmm(self.adj_1, x_1)
 
-        x_2 = torch.mm(x, self.weights_2.type(torch.FloatTensor))
+        x_2 = torch.mm(x, self.weights_2.type(torch.cuda.FloatTensor))
         x_2 = torch.spmm(self.adj_2, x_2)
         outputs = self.act(x_1 + x_2)
         return outputs
@@ -121,11 +121,11 @@ class RelationalGraphConvolutionSparse(Module):
     def forward(self, inputs):
         x = dropout_sparse(inputs, 1-self.dropout, self.features_nonzero)
 
-        x_1 = torch.spmm(x, self.weights_1)
-        x_1 = torch.spmm(self.adj_1, x_1.type(torch.FloatTensor))
+        x_1 = torch.spmm(x, self.weights_1).to('cuda:0')
+        x_1 = torch.spmm(self.adj_1, x_1.type(torch.cuda.FloatTensor)).to('cuda:0')
 
-        x_2 = torch.spmm(x, self.weights_2)
-        x_2 = torch.spmm(self.adj_2, x_2.type(torch.FloatTensor))
+        x_2 = torch.spmm(x, self.weights_2).to('cuda:0')
+        x_2 = torch.spmm(self.adj_2, x_2.type(torch.cuda.FloatTensor)).to('cuda:0')
 
-        outputs = self.act(x_1 + x_2)
+        outputs = self.act(x_1 + x_2).to('cuda:0')
         return outputs
