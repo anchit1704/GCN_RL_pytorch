@@ -37,12 +37,12 @@ def model_train(dataset):
     model_rgcn_main = RGCN(num_features, features_nonzero).to(device)
     model_rgcn_target = RGCN(num_features, features_nonzero).to(device)
 
-    state_representations_main = model_rgcn_main(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2])).to(device)
-    state_representations_target = model_rgcn_target(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2])).to(device)
+   # state_representations_main = model_rgcn_main(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2])).to(device)
+   # state_representations_target = model_rgcn_target(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2])).to(device)
 
-    model_rl_target = DQN(state=state_representations_target,
+    model_rl_target = DQN(16,
                           output_dim=num_nodes).to(device)
-    model_rl_main = DQN(state=state_representations_main,
+    model_rl_main = DQN(16,
                         output_dim=num_nodes).to(device)
 
     parameters = list(model_rgcn_main.parameters()) + list(model_rl_main.parameters())

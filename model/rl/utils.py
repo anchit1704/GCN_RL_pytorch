@@ -107,7 +107,9 @@ def run_training_episode(model_rgcn_main,
         features = gcn_params['features']
         adj_1 = gcn_params['adj_1']
         adj_2 = gcn_params['adj_2']
-        qvalues = model_rl_main(16).to(device)
+        state_rep_main = model_rgcn_main(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2])).to(device)
+     #   state_rep_target = model_rgcn_target(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2])).to(device)
+        qvalues = model_rl_main(state_rep_main).to(device)
         candidate_ids = list(set(candidate_ids).difference(set(selected_list)))
         qvalues_masked = qvalues[0][candidate_ids]
 
