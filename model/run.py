@@ -57,6 +57,11 @@ def model_train(dataset):
                   'labels': labels}
 
     for epoch in range(FLAGS.epochs):
+        if epoch < 20:
+            candidate_list = get_candidate_ids(labels, 1)
+        else:
+            candidate_list = get_candidate_ids(labels, 2)
+        
         episode_reward, episode_loss, frame_count = run_training_episode(model_rgcn_main = model_rgcn_main,
                                                         model_rgcn_target = model_rgcn_target,
                                                         model_rl_main=model_rl_main,
