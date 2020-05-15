@@ -157,10 +157,7 @@ def update_adj(selected_node_id, adj_1, adj_2):
     # adj_1 = sp.csr_matrix(adj_1)
     # adj_2 = sp.csr_matrix(adj_2)
 
-    adj_norm_1 = sparse_to_tuple(normalize_adj(adj_1))
-    adj_norm_2 = sparse_to_tuple(normalize_adj(adj_2))
-
-    return adj_norm_1, adj_norm_2, adj_1, adj_2
+    return adj_1, adj_2
 
 def convert_coo_to_torch_coo_tensor(coo):
     values = coo.data

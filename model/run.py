@@ -32,7 +32,7 @@ def model_train(dataset):
     num_nodes = adj_norm_1[2][0]
     num_features = features[2][1]
     features_nonzero = features[1].shape[0]
-
+    feature_tensor = torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]),features[2])
     # Create Model
     model_rgcn_main = RGCN(num_features, features_nonzero).to(device)
     model_rgcn_target = RGCN(num_features, features_nonzero).to(device)
@@ -49,18 +49,16 @@ def model_train(dataset):
 
     replay_buffer = ReplayBuffer(buffer_size=FLAGS.buffer_size)
     frame_count = 0
-    gcn_params = {'adj_norm_1': adj_norm_1,
-                  'adj_norm_2': adj_norm_2,
-                  'adj_1': adj_1,
+    gcn_params = {'adj_1': adj_1,
                   'adj_2': adj_2,
-                  'features': features,
+                  'feature_tensor': feature_tensor,
                   'labels': labels}
 
     for epoch in range(FLAGS.epochs):
-        if epoch < 20:
-            candidate_list = get_candidate_ids(labels, 1)
-        else:
-            candidate_list = get_candidate_ids(labels, 2)
+        # if epoch < 20:
+        #     candidate_list = get_candidate_ids(labels, 1)
+        # else:
+        #     candidate_list = get_candidate_ids(labels, 2)
         
         episode_reward, episode_loss, frame_count = run_training_episode(model_rgcn_main = model_rgcn_main,
                                                         model_rgcn_target = model_rgcn_target,
@@ -88,7 +86,7 @@ if __name__ == '__main__':
     FLAGS(sys.argv)
     flags.DEFINE_string('model', 'gcn', 'Model string.')  # 'gcn', 'gcn_cheby', 'dense'
     flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
-    flags.DEFINE_integer('epochs', 100, 'Number of epochs to train.')
+    flags.DEFINE_integer('epochs', 500, 'Number of epochs to train.')
     flags.DEFINE_float('dropout', 0.5, 'Dropout rate (1 - keep probability).')
     flags.DEFINE_float('weight_decay', 5e-4, 'Weight for L2 loss on embedding matrix.')
     flags.DEFINE_integer('early_stopping', 10, 'Tolerance for early stopping (# of epochs).')
@@ -100,10 +98,10 @@ if __name__ == '__main__':
     flags.DEFINE_multi_float('epsilon', [1, 1000, 0.1],
                              ['Initial exploration rate', 'anneal steps', 'final exploration rate'])
     flags.DEFINE_float('gamma', 0.99, 'Discount factor.')
-    flags.DEFINE_integer('replay_start_size', 20, 'Number of experiences to be stored before training.')
+    flags.DEFINE_integer('replay_start_size', 80, 'Number of experiences to be stored before training.')
     flags.DEFINE_integer('target_update_freq', 100, 'rl target network update frequency.')
     flags.DEFINE_integer('main_update_freq', 10, 'rl main network update frequency.')
-    flags.DEFINE_integer('rl_batch_size', 10, 'Batch size for training rl.')
+    flags.DEFINE_integer('rl_batch_size', 64, 'Batch size for training rl.')
     flags.DEFINE_float('rl_lr', 0.0001, 'Initial rl learning rate.')
 
     flags.DEFINE_string('summary_path', './log', 'Path to store training summary.')

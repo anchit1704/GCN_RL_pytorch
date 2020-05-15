@@ -43,19 +43,21 @@ def update_main_rl(model_rgcn_main,
        state_rep_target = []
        actions = []
 
-       for idx in enumerate(train_batch):
-           state_rep_main.append(model_rgcn_main(train_batch[idx[0],3]['adj_1'],
-                                            train_batch[idx[0], 3]['adj_2'],
+
+       feature_tensor = train_batch[0,3]['feature_tensor']
+
+       state_rep_m = model_rgcn_main(train_batch[0,3]['adj_1'],
+                                            train_batch[0, 3]['adj_2'],
                                             0.5,
-                                            torch.sparse_coo_tensor(torch.tensor(train_batch[idx[0], 3]['features'][0].transpose()),
-                                                                    torch.tensor(train_batch[idx[0], 3]['features'][1]),
-                                                                    train_batch[idx[0], 3]['features'][2])))
-           state_rep_target.append(model_rgcn_target(train_batch[idx[0], 3]['adj_1'],
-                                                train_batch[idx[0], 3]['adj_2'],
+                                            feature_tensor)
+
+       state_rep_t = model_rgcn_target(train_batch[0, 3]['adj_1'],
+                                                train_batch[0, 3]['adj_2'],
                                                 0.5,
-                                                torch.sparse_coo_tensor(torch.tensor(train_batch[idx[0], 3]['features'][0].transpose()),
-                                                                        torch.tensor(train_batch[idx[0], 3]['features'][1]),
-                                                                        train_batch[idx[0], 3]['features'][2])))
+                                                feature_tensor)
+       for idx in enumerate(train_batch):
+           state_rep_main.append(state_rep_m)
+           state_rep_target.append(state_rep_t)
 
            rewards.append(train_batch[idx[0], 2])
            actions.append(train_batch[idx[0], 1])
@@ -103,11 +105,12 @@ def run_training_episode(model_rgcn_main,
     selected_list = []
     steps = 0
     count = 0
+    feature_tensor = gcn_params['feature_tensor']
+
     while steps < FLAGS.rl_episode_max_steps:
-        features = gcn_params['features']
         adj_1 = gcn_params['adj_1']
         adj_2 = gcn_params['adj_2']
-        state_rep_main = model_rgcn_main(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2])).to(device)
+        state_rep_main = model_rgcn_main(adj_1, adj_2, 0.5,feature_tensor).to(device)
      #   state_rep_target = model_rgcn_target(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2])).to(device)
         qvalues = model_rl_main(state_rep_main).to(device)
         candidate_ids = list(set(candidate_ids).difference(set(selected_list)))
@@ -128,14 +131,12 @@ def run_training_episode(model_rgcn_main,
 
         selected_list.append(selected_node_id)
         
-        new_gcn_params = {'adj_norm_1': gcn_params['adj_norm_1'],
-                  'adj_norm_2': gcn_params['adj_norm_2'],
-                  'adj_1': gcn_params['adj_1'],
+        new_gcn_params = {'adj_1': gcn_params['adj_1'],
                   'adj_2': gcn_params['adj_2'],
-                  'features': gcn_params['features'],
+                  'feature_tensor': gcn_params['feature_tensor'],
                   'labels': gcn_params['labels']}
          
-        new_gcn_params['adj_norm_1'], new_gcn_params['adj_norm_2'], new_gcn_params['adj_1'], new_gcn_params['adj_2'] \
+        new_gcn_params['adj_1'], new_gcn_params['adj_2'] \
             = update_adj(selected_node_id, gcn_params['adj_1'], gcn_params['adj_2'])
 
 
