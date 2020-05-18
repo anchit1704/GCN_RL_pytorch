@@ -45,6 +45,19 @@ def model_train(dataset):
     model_rl_main = DQN(16,
                         output_dim=num_nodes).to(device)
 
+    for name, param in model_rl_main.named_parameters():
+        if param.requires_grad:
+            print(name, param.data)
+
+
+    for name, param in model_rgcn_main.named_parameters():
+        if param.requires_grad:
+            print(name, param.data)
+
+
+    RGCN_params =list(model_rgcn_main.parameters())
+    RL_params = list(model_rl_main.parameters())
+
     parameters = list(model_rgcn_main.parameters()) + list(model_rl_main.parameters())
 
     replay_buffer = ReplayBuffer(buffer_size=FLAGS.buffer_size)
@@ -98,9 +111,9 @@ if __name__ == '__main__':
     flags.DEFINE_multi_float('epsilon', [1, 1000, 0.1],
                              ['Initial exploration rate', 'anneal steps', 'final exploration rate'])
     flags.DEFINE_float('gamma', 0.99, 'Discount factor.')
-    flags.DEFINE_integer('replay_start_size', 80, 'Number of experiences to be stored before training.')
-    flags.DEFINE_integer('target_update_freq', 100, 'rl target network update frequency.')
-    flags.DEFINE_integer('main_update_freq', 10, 'rl main network update frequency.')
+    flags.DEFINE_integer('replay_start_size', 64, 'Number of experiences to be stored before training.')
+    flags.DEFINE_integer('target_update_freq', 10, 'rl target network update frequency.')
+    flags.DEFINE_integer('main_update_freq', 4, 'rl main network update frequency.')
     flags.DEFINE_integer('rl_batch_size', 64, 'Batch size for training rl.')
     flags.DEFINE_float('rl_lr', 0.0001, 'Initial rl learning rate.')
 

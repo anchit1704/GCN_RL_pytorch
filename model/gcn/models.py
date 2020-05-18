@@ -18,74 +18,53 @@ class GCN(nn.Module):
         super(GCN, self).__init__()
         self.input_dim = num_features
         self.features_nonzero = features_nonzero
-        
-    def forward(self, adj):
-        self.hidden1 = GraphConvolutionSparse(input_dim=self.input_dim,
+        self.layers = nn.ModuleList()
+        self.layers.append(GraphConvolutionSparse(input_dim=self.input_dim,
                                               output_dim=FLAGS.hidden1,
-                                              adj=adj,
-                                              features_nonzero=self.features_nonzero,
-                                              act=torch.nn.ReLU,
-                                              dropout=self.dropout,
-                                              logging=self.logging).to(device)(self.inputs)
+                                              features_nonzero=self.features_nonzero
+                                                  ))
 
-        self.hidden2 = GraphConvolution(input_dim=FLAGS.hidden1,
-                                        output_dim=FLAGS.hidden2,
-                                        adj=adj,
-                                        act=lambda x: x,
-                                        dropout=self.dropout,
-                                        logging=self.logging).to(device)(self.hidden1)
+        self.layers.append(GraphConvolution(input_dim=FLAGS.hidden1,
+                                        output_dim=FLAGS.hidden2
+                                            ))
+        
+    def forward(self, adj, inputs, act = torch.nn.ReLU(), dropout =0.):
+        hidden1 = self.layers[0](adj, inputs, act, dropout)
+        hidden2 = self.layers[1](adj, hidden1, act, dropout)
+        out = nn.Softmax(hidden2).to('cuda:0')
 
-        self.outputs = torch.nn.Softmax(self.hidden2).to(device)
-
-        self._loss()
-        self._accuracy()
-
-    def _loss(self):
-        self.loss = masked_softmax_cross_entropy(self.outputs, self.labels, self.labels_mask)
-
-    def _accuracy(self):
-        self.accuracy = masked_accuracy(self.outputs, self.labels, self.labels_mask)
+        return out
 
 
 class RGCN(nn.Module):
     def __init__(self, num_features, features_nonzero):
        # with tf.variable_scope(scope):
             super(RGCN, self).__init__()
-
-           # self.inputs = features
-            #self.adj_1 = adj_1
-            #self.adj_2 = adj_2
-            #self.dropout = dropout
             self.input_dim = num_features
             self.features_nonzero = features_nonzero
+            self.layers = nn.ModuleList()
+            self.layers.append(RelationalGraphConvolutionSparse(input_dim=self.input_dim,
+                                                    output_dim=FLAGS.hidden1,  # replace tf flag
+                                                    features_nonzero=self.features_nonzero
+                                                    ))
+            self.layers.append(RelationalGraphConvolution(input_dim=FLAGS.hidden1,
+                                                      output_dim=FLAGS.hidden2
+                                                  ))
 
-           # self.build()
 
-    def forward(self, adj_1, adj_2, dropout, inputs):
-        self.hidden1 = RelationalGraphConvolutionSparse(input_dim=self.input_dim,
-                                                        output_dim=FLAGS.hidden1,   #replace tf flag
-                                                        adj_1= adj_1,
-                                                        adj_2= adj_2,
-                                                        features_nonzero=self.features_nonzero,
-                                                        act=torch.nn.ReLU(),
-                                                        dropout=dropout
-                                                        )(inputs)
+    def forward(self, inputs, adj_1, adj_2, dropout = 0., act = torch.nn.ReLU()):
+        layer1 = self.layers[0]
+        hidden1 = self.layers[0](inputs, adj_1, adj_2, dropout, act)
+        layer2 = self.layers[1]
+        hidden2 = self.layers[1](hidden1, adj_1, adj_2, dropout, act)
 
-        self.hidden2 = RelationalGraphConvolution(input_dim=FLAGS.hidden1,
-                                                  output_dim=FLAGS.hidden2,
-                                                  adj_1=adj_1,
-                                                  adj_2=adj_2,
-                                                  act=torch.nn.ReLU(),
-                                                  dropout=dropout
-                                                  )(self.hidden1)
-
-        self.outputs = torch.mean(self.hidden2, 0, keepdim=True)
+        outputs = torch.mean(hidden2, 0, keepdim=True)
         
-        return self.outputs
+        return outputs
 
 
 class RGCN2(nn.Module):
-    def __init__(self,features, adj_1, adj_2, dropout, num_features, scope):
+    def __init__(self, num_features, features):
         #with tf.variable_scope(scope):
             super(RGCN2, self).__init__()
 

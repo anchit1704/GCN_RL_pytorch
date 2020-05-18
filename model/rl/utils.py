@@ -46,15 +46,15 @@ def update_main_rl(model_rgcn_main,
 
        feature_tensor = train_batch[0,3]['feature_tensor']
 
-       state_rep_m = model_rgcn_main(train_batch[0,3]['adj_1'],
-                                            train_batch[0, 3]['adj_2'],
-                                            0.5,
-                                            feature_tensor)
+       state_rep_m = model_rgcn_main(feature_tensor,
+                                     train_batch[0,3]['adj_1'],
+                                     train_batch[0, 3]['adj_2'],
+                                     0.5)
 
-       state_rep_t = model_rgcn_target(train_batch[0, 3]['adj_1'],
-                                                train_batch[0, 3]['adj_2'],
-                                                0.5,
-                                                feature_tensor)
+       state_rep_t = model_rgcn_target(feature_tensor,
+                                       train_batch[0, 3]['adj_1'],
+                                       train_batch[0, 3]['adj_2'],
+                                       0.5)
        for idx in enumerate(train_batch):
            state_rep_main.append(state_rep_m)
            state_rep_target.append(state_rep_t)
@@ -110,7 +110,7 @@ def run_training_episode(model_rgcn_main,
     while steps < FLAGS.rl_episode_max_steps:
         adj_1 = gcn_params['adj_1']
         adj_2 = gcn_params['adj_2']
-        state_rep_main = model_rgcn_main(adj_1, adj_2, 0.5,feature_tensor).to(device)
+        state_rep_main = model_rgcn_main(feature_tensor, adj_1, adj_2, 0.5).to(device)
      #   state_rep_target = model_rgcn_target(adj_1, adj_2, 0.5, torch.sparse_coo_tensor(torch.tensor(features[0].transpose()), torch.tensor(features[1]), features[2])).to(device)
         qvalues = model_rl_main(state_rep_main).to(device)
         candidate_ids = list(set(candidate_ids).difference(set(selected_list)))
@@ -158,12 +158,13 @@ def run_training_episode(model_rgcn_main,
                 episode_losses.append(loss)
             if frame_count % FLAGS.target_update_freq == 0:
                 model_rl_target.load_state_dict(model_rl_main.state_dict())
+                model_rgcn_target.load_state_dict(model_rgcn_main.state_dict())
 
         gcn_params = new_gcn_params
         frame_count += 1
         steps += 1
 
-        print(count)
+      #  print(count)
         if done:
             break
 
